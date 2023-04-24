@@ -6,6 +6,7 @@
 
   The following variables are automatically generated and updated when changes are made to the Thing
 
+  float ppm;
   CloudTemperatureSensor dHT11_TEMP;
   int photo_res;
   CloudRelativeHumidity dHT11_HUMT;
@@ -22,8 +23,12 @@
 #define DHTTYPE DHT11                     // DHT sensor type
 DHT dht(sens_DHT11, DHTTYPE);             // DHT object init
 
+int photo_pin = A5;                       // Photoresistor pin
+int gas_pin = A3;                         // Gas pin
+
 void readsensor_DHT();                    // DHT11 read
 void readsensor_photoresistor();          // Photoresistor read
+void readsensor_ppm();                    // PPM sensor
 
 void setup() 
 {
@@ -41,6 +46,9 @@ void setup()
   
   // Photoresistor sensor
   pinMode(A5, INPUT);
+  
+  // PPM sensor
+  pinMode(A3, INPUT);
 }
 
 void loop() 
@@ -48,6 +56,8 @@ void loop()
   ArduinoCloud.update();
   readsensor_DHT();
   readsensor_photoresistor();
+  readsensor_ppm();
+  
   delay(1000);
 }
 
@@ -73,11 +83,21 @@ void readsensor_DHT()
 
 void readsensor_photoresistor()
 {
-  int p = analogRead(A5);
+  int p = analogRead(photo_pin);
   
   photo_res = p;
   
   Serial.print(F("Photoresistor: "));
   Serial.print(p);
+}
+
+void readsensor_ppm()
+{
+  int sensor_value = analogRead(gas_pin);                 // Read the sensor value
+  float voltage = sensor_value * (5.0 / 1023.0);          // Convert the sensor value to voltage
+  ppm = (voltage - 0.1) * 100 / 0.8;                      // Convert the voltage to ppm
+  
+  Serial.print(F(" PPM: "));
+  Serial.print(ppm);
   Serial.println();
 }
