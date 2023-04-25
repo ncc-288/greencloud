@@ -10,6 +10,7 @@
   CloudTemperatureSensor dHT11_TEMP;
   int photo_res;
   CloudRelativeHumidity dHT11_HUMT;
+  CloudRelativeHumidity soil_moisture;
 
   Variables which are marked as READ/WRITE in the Cloud Thing will also have functions
   which are called when their values are changed from the Dashboard.
@@ -25,10 +26,12 @@ DHT dht(sens_DHT11, DHTTYPE);             // DHT object init
 
 int photo_pin = A5;                       // Photoresistor pin
 int gas_pin = A3;                         // Gas pin
+int soil_pin = A1;                        // Soil moisture pin
 
 void readsensor_DHT();                    // DHT11 read
 void readsensor_photoresistor();          // Photoresistor read
 void readsensor_ppm();                    // PPM sensor
+void readsensor_soilmoisture();           // Soil moisture sensor
 
 void setup() 
 {
@@ -45,10 +48,13 @@ void setup()
   dht.begin();
   
   // Photoresistor sensor
-  pinMode(A5, INPUT);
+  pinMode(photo_pin, INPUT);
   
   // PPM sensor
-  pinMode(A3, INPUT);
+  pinMode(gas_pin, INPUT);
+
+  // Soil moisture sensor
+  pinMode(soil_pin, INPUT);
 }
 
 void loop() 
@@ -57,8 +63,9 @@ void loop()
   readsensor_DHT();
   readsensor_photoresistor();
   readsensor_ppm();
+  readsensor_soilmoisture();
   
-  delay(1000);
+  delay(2000);
 }
 
 void readsensor_DHT()
@@ -75,9 +82,9 @@ void readsensor_DHT()
   dHT11_HUMT = h;
 
   Serial.print(F("Humidity: "));
-  Serial.print(h);
+  Serial.print(dHT11_HUMT);
   Serial.print(F("%  Temperature: "));
-  Serial.print(t);
+  Serial.print(dHT11_TEMP);
   Serial.print(F("°C "));
 }
 
@@ -88,7 +95,7 @@ void readsensor_photoresistor()
   photo_res = p;
   
   Serial.print(F("Photoresistor: "));
-  Serial.print(p);
+  Serial.print(photo_res);
 }
 
 void readsensor_ppm()
@@ -99,5 +106,15 @@ void readsensor_ppm()
   
   Serial.print(F(" PPM: "));
   Serial.print(ppm);
-  Serial.println();
+}
+
+void readsensor_soilmoisture()
+{
+  int soil = analogRead(soil_pin);
+  float hum_per = 100 - ((soil * 100) / 1023);
+  soil_moisture = hum_per;
+  
+  Serial.print(F(" Soil hum: "));
+  Serial.print(soil_moisture);
+  Serial.println(F("°C "));
 }
