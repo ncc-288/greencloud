@@ -13,6 +13,7 @@
   CloudRelativeHumidity soil_moisture;
   bool heating;
   bool irrigation;
+  bool is_night;
   bool ventilation;
 
   Variables which are marked as READ/WRITE in the Cloud Thing will also have functions
@@ -30,12 +31,12 @@ DHT dht(sens_DHT11, DHTTYPE);             // DHT object init
 int photo_pin = A5;                       // Photoresistor pin
 int gas_pin = A3;                         // Gas pin
 int soil_pin = A1;                        // Soil moisture pin
-int heating_pin = 5;
-int ventilation_pin = 4;
-int irrigation_pin = 3;
+int heating_pin = 5;                      // Heating control pin
+int ventilation_pin = 4;                  // Ventilation control pin
+int irrigation_pin = 3;                   // Irrigation control pin
 
-void readsensor_DHT();                    // DHT11 read
-void readsensor_photoresistor();          // Photoresistor read
+void readsensor_DHT();                    // DHT11 read and hum/temp control
+void readsensor_photoresistor();          // Photoresistor read and night check
 void readsensor_ppm();                    // PPM sensor
 void readsensor_soilmoisture();           // Soil moisture sensor
 
@@ -63,7 +64,7 @@ void setup()
   // Photoresistor sensor
   pinMode(photo_pin, INPUT);
   
-  // PPM sensor
+  // Gas sensor
   pinMode(gas_pin, INPUT);
 
   // Soil moisture sensor
@@ -73,28 +74,37 @@ void setup()
   pinMode(heating_pin, OUTPUT);
   pinMode(ventilation_pin, OUTPUT);
   pinMode(irrigation_pin, OUTPUT);
+  digitalWrite(irrigation_pin, irrigation);
+  digitalWrite(heating_pin, heating);
+  digitalWrite(ventilation_pin, ventilation);
 }
 
 void loop() 
 {
+  Serial.print(F("ppm="));
+  Serial.print(ppm, 2);
+  Serial.print(F(", temp="));
+  Serial.print(dHT11_TEMP, 2);
+  Serial.print(F("C, light="));
+  Serial.print(photo_res);
+  Serial.print(F(", hum="));
+  Serial.print(dHT11_HUMT, 2);
+  Serial.print(F("%, soil="));
+  Serial.print(soil_moisture, 2);
+  Serial.print(F("%, heating="));
+  Serial.print(heating);
+  Serial.print(F(", irrigation="));
+  Serial.print(irrigation);
+  Serial.print(F(", ventilation="));
+  Serial.print(ventilation);
+  Serial.print(F(", night="));
+  Serial.println(is_night);
+
   ArduinoCloud.update();
-  readsensor_DHT();
   readsensor_photoresistor();
+  readsensor_DHT();
   readsensor_ppm();
   readsensor_soilmoisture();
-  
-  Serial.print("H ");
-  Serial.print(heating);
-  Serial.print(" -- V ");
-  Serial.print(ventilation);
-  Serial.print(" -- I ");
-  Serial.println(irrigation);
-  Serial.print("HP ");
-  Serial.print(digitalRead(heating_pin));
-  Serial.print(" -- VP ");
-  Serial.print(digitalRead(ventilation_pin));
-  Serial.print(" -- IP ");
-  Serial.println(digitalRead(irrigation_pin));
   
   delay(2000);
 }
@@ -108,18 +118,16 @@ void readsensor_DHT()
   dHT11_HUMT = h;
   
   // Temperature control
-  if (t < 18) { start_heating(); } else { stop_heating(); }
-
-  // Temperature control
-  if (h < 60) { stop_ventilation(); } 
-  else if (h > 80) { start_ventilation(); }
-  else { stop_ventilation(); }
-  
-  Serial.print(F("Humidity: "));
-  Serial.print(dHT11_HUMT);
-  Serial.print(F("%  Temperature: "));
-  Serial.print(dHT11_TEMP);
-  Serial.print(F("°C "));
+  if (!is_night) {
+    if (t < 18 && !digitalRead(heating_pin)) { start_heating(); }
+    else if (t >= 24 && digitalRead(heating_pin)) { stop_heating(); }
+  } else {
+    if (t < 12 && !digitalRead(heating_pin)) { start_heating(); }
+    else if (t >= 16 && digitalRead(heating_pin)) { stop_heating(); }
+  }
+  // Humidity control
+  if (h < 50 && digitalRead(ventilation_pin)) { stop_ventilation(); } 
+  else if (h > 70 && !digitalRead(ventilation_pin)) { start_ventilation(); }
 }
 
 void readsensor_photoresistor()
@@ -127,8 +135,7 @@ void readsensor_photoresistor()
   int p = analogRead(photo_pin);
   photo_res = p;
   
-  Serial.print(F("Photoresistor: "));
-  Serial.print(photo_res);
+  if (photo_res > 512) { is_night = true; } else { is_night = false; }
 }
 
 void readsensor_ppm()
@@ -136,9 +143,7 @@ void readsensor_ppm()
   int sensor_value = analogRead(gas_pin);                 // Read the sensor value
   float voltage = sensor_value * (5.0 / 1023.0);          // Convert the sensor value to voltage
   ppm = (voltage - 0.1) * 100 / 0.8;                      // Convert the voltage to ppm
-  
-  Serial.print(F(" PPM: "));
-  Serial.print(ppm);
+
 }
 
 void readsensor_soilmoisture()
@@ -146,30 +151,28 @@ void readsensor_soilmoisture()
   int soil = analogRead(soil_pin);
   float hum_per = 100 - ((soil * 100) / 1023);
   soil_moisture = hum_per;
-  
-  Serial.print(F(" Soil hum: "));
-  Serial.print(soil_moisture);
-  Serial.println(F("°C "));
+
 }
 
 void onIrrigationChange() { delay(200); digitalWrite(irrigation_pin, irrigation); }
 void onHeatingChange(){ delay(200); digitalWrite(heating_pin, heating); }
 void onVentilationChange() { delay(200); digitalWrite(ventilation_pin, ventilation); }
 
-void start_ventilation()  { digitalWrite(ventilation_pin, HIGH); 
-                            ventilation = ventilation_pin; }
+void start_ventilation()  { digitalWrite(ventilation_pin, HIGH);
+                            ventilation = digitalRead(ventilation_pin); }
                             
 void start_heating()      { digitalWrite(heating_pin, HIGH);
-                            heating = heating_pin; }
+                            heating = digitalRead(heating_pin); }
                             
 void start_irrigation()   { digitalWrite(irrigation_pin, HIGH);
-                            irrigation = irrigation_pin; }
+                            irrigation = digitalRead(irrigation_pin); }
                             
 void stop_ventilation()   { digitalWrite(ventilation_pin, LOW);
-                            ventilation = ventilation_pin; }
+                            ventilation = digitalRead(ventilation_pin); }
                             
 void stop_heating()       { digitalWrite(heating_pin, LOW);
-                            heating = heating_pin; }
+                            heating = digitalRead(heating_pin);
+                          }
                             
 void stop_irrigation()    { digitalWrite(irrigation_pin, LOW);
-                            irrigation = irrigation_pin; }
+                            irrigation = digitalRead(irrigation_pin); }
