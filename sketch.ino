@@ -8,7 +8,7 @@
 
   float ppm;
   CloudTemperatureSensor dHT11_TEMP;
-  int photo_res;
+  CloudPercentage photo_res;
   CloudRelativeHumidity dHT11_HUMT;
   CloudRelativeHumidity soil_moisture;
   bool heating;
@@ -87,7 +87,7 @@ void loop()
   Serial.print(dHT11_TEMP, 2);
   Serial.print(F("C, light="));
   Serial.print(photo_res);
-  Serial.print(F(", hum="));
+  Serial.print(F("%, hum="));
   Serial.print(dHT11_HUMT, 2);
   Serial.print(F("%, soil="));
   Serial.print(soil_moisture, 2);
@@ -106,7 +106,7 @@ void loop()
   readsensor_ppm();
   readsensor_soilmoisture();
   
-  delay(2000);
+  delay(1000);
 }
 
 void readsensor_DHT()
@@ -133,9 +133,10 @@ void readsensor_DHT()
 void readsensor_photoresistor()
 {
   int p = analogRead(photo_pin);
-  photo_res = p;
+  float light_per = 100 - ((p * 100) / 1023);
+  photo_res = light_per;
   
-  if (photo_res > 512) { is_night = true; } else { is_night = false; }
+  if (photo_res < 20) { is_night = true; } else { is_night = false; }
 }
 
 void readsensor_ppm()
@@ -143,7 +144,6 @@ void readsensor_ppm()
   int sensor_value = analogRead(gas_pin);                 // Read the sensor value
   float voltage = sensor_value * (5.0 / 1023.0);          // Convert the sensor value to voltage
   ppm = (voltage - 0.1) * 100 / 0.8;                      // Convert the voltage to ppm
-
 }
 
 void readsensor_soilmoisture()
@@ -151,7 +151,6 @@ void readsensor_soilmoisture()
   int soil = analogRead(soil_pin);
   float hum_per = 100 - ((soil * 100) / 1023);
   soil_moisture = hum_per;
-
 }
 
 void onIrrigationChange() { delay(200); digitalWrite(irrigation_pin, irrigation); }
